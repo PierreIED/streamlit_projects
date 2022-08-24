@@ -1,3 +1,4 @@
+import pandas
 import streamlit as st
 from PIL import Image
 import piexif
@@ -18,24 +19,24 @@ def prompt_coord(value: tuple) -> str:
 def modify_value2(inputs: dict, image: Image, data: dict):
     for tag in inputs.keys():
         value = inputs[tag]
+        if value == "":
+            continue
         test_value, value = get_value_format(tag, value)
-        print(value, type(value))
         if not test_value:
             st.error(f"La valeur pour {tag} n'est pas au bon format")
             continue
 
         ifd = "0th" if tag in exif_trad["0th"].keys() else "GPS"
         data[ifd][exif_trad[ifd][tag][1]] = value
-        new_image = image.copy()
+    new_image = image.copy()
 
-        exif_bytes = piexif.dump(data)
-        new_image.save("img_copy.jpg", "jpeg")
+    exif_bytes = piexif.dump(data)
+    new_image.save("img_copy.jpg", "jpeg")
 
-        piexif.insert(exif_bytes, "img_copy.jpg")
+    piexif.insert(exif_bytes, "img_copy.jpg")
 
 
 def get_value_format(tag: str, value) -> tuple:
-    print(value, type(value))
     test = False
     new_value = None
     if tag in ["ImageWidth", "ImageLength"]:
@@ -98,7 +99,26 @@ exif_trad = {"0th":
                   "GPSLongitudeRef": ("direction longitude", piexif.GPSIFD.GPSLongitudeRef, prompt_str),
                   "GPSLongitude": ("longitude", piexif.GPSIFD.GPSLongitude, prompt_coord)}
              }
-MODIFIABLE_VALUES = []
+
+
+def get_lat(data: dict) -> float:
+    if piexif.GPSIFD.GPSLatitude not in data['GPS'].keys():
+        return 0
+    lat_frac = data['GPS'][piexif.GPSIFD.GPSLatitude]
+    lat_dec = float(prompt_coord(lat_frac))
+    if data['GPS'][piexif.GPSIFD.GPSLatitudeRef] == b"S":
+        lat_dec = - lat_dec
+    return lat_dec
+
+
+def get_long(data: dict) -> float:
+    if piexif.GPSIFD.GPSLongitude not in data['GPS'].keys():
+        return 0
+    long_frac = data['GPS'][piexif.GPSIFD.GPSLongitude]
+    long_dec = float(prompt_coord(long_frac))
+    if data['GPS'][piexif.GPSIFD.GPSLongitudeRef] == b"W":
+        long_dec = - long_dec
+    return long_dec
 
 
 def main():
@@ -114,22 +134,32 @@ def main():
         # providing default path
 
         my_image = Image.open("chien.jpg") if not uploaded_image else Image.open(uploaded_image)
+        data = piexif.load(my_image.info['exif'])
 
         col1, col2 = st.columns(2)
 
         with col1:
             st.image(my_image)
+            latitude = get_lat(data)
+            longitude = get_long(data)
+            df = pandas.DataFrame({
+                'awesome cities': ['Chicago'],
+                'lat': [latitude],
+                'lon': [longitude]
+            })
+            st.map(df, zoom=6)
         with col2:
             st.info("Métadonnées EXIF")
-            data = piexif.load(my_image.info['exif'])
 
             inputs = {}
 
             for ifd in exif_trad.keys():
                 for tag_name in exif_trad[ifd].keys():
-                    value = data[ifd][exif_trad[ifd][tag_name][1]]
-                    print(value)
-                    text_value = exif_trad[ifd][tag_name][2](value) if exif_trad[ifd][tag_name][2] else value
+                    tag_code = exif_trad[ifd][tag_name][1]
+                    text_value = ""
+                    if tag_code in data[ifd].keys():
+                        value = data[ifd][tag_code]
+                        text_value = exif_trad[ifd][tag_name][2](value) if exif_trad[ifd][tag_name][2] else value
                     inputs[tag_name] = st.text_input(f"{exif_trad[ifd][tag_name][0]}",
                                                      value=text_value)
             st.button("changer les données", on_click=modify_value2, args=(inputs, my_image, data))
@@ -140,11 +170,5 @@ def main():
     return "hello world"
 
 
-def get_image(image_path: str):
-    my_image = Image.open(image_path)
-    return my_image
-
-
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     main()
