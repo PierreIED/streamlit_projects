@@ -3,6 +3,8 @@ import streamlit as st
 from PIL import Image
 import piexif
 from fractions import Fraction
+import pandas as pd
+import pydeck as pdk
 
 
 def prompt_str(value: bytes) -> str:
@@ -166,7 +168,133 @@ def main():
 
     # ====================      Location part   =======================
     else:
-        pass
+        data_pandas = {
+            'city': ["SaintAndré 13 Voies", "Rennes", "Mulhouse", "Greffern", "Strasbourg", "Argenteuil", "La Glacerie",
+                     "Lieusaint"],
+            'years': [17, 2, 4, 1, 1, 2, 2, 10],
+            'lat': [46.92294231382949,
+                    48.11833569032241,
+                    47.73846972769271,
+                    48.74947715163981,
+                    48.59005804751027,
+                    48.92860234577915,
+                    49.6190165971145,
+                    49.48219891080739],
+            'lon': [-1.412453434220721,
+                    -1.6328255244334595,
+                    7.319256116526316,
+                    8.00728074558261,
+                    7.743737616762319,
+                    2.2252031323280907,
+                    -1.6307539550132186,
+                    -1.462997874384719]}
+        df = pd.DataFrame.from_dict(data_pandas)
+
+        data_pandas2 = {'distance': [163, 845, 150, 150, 114, 114, 497, 348, 21],
+                        'lat': [46.92294231382949,
+                                48.11833569032241,
+                                47.73846972769271,
+                                48.74947715163981,
+                                47.73846972769271,
+                                48.59005804751027,
+                                47.73846972769271,
+                                48.92860234577915,
+                                49.6190165971145, ],
+                        'lon': [-1.412453434220721,
+                                -1.6328255244334595,
+                                7.319256116526316,
+                                8.00728074558261,
+                                7.319256116526316,
+                                7.743737616762319,
+                                7.319256116526316,
+                                2.2252031323280907,
+                                -1.6307539550132186],
+                        'lat2': [48.11833569032241,
+                                 47.73846972769271,
+                                 48.74947715163981,
+                                 47.73846972769271,
+                                 48.59005804751027,
+                                 47.73846972769271,
+                                 48.92860234577915,
+                                 49.6190165971145,
+                                 49.48219891080739],
+                        'lon2': [-1.6328255244334595,
+                                 7.319256116526316,
+                                 8.00728074558261,
+                                 7.319256116526316,
+                                 7.743737616762319,
+                                 7.319256116526316,
+                                 2.2252031323280907,
+                                 -1.6307539550132186,
+                                 -1.462997874384719]
+                        }
+
+        df2 = pd.DataFrame.from_dict(data_pandas2)
+
+        ALL_LAYERS = {
+            "Années passées": pdk.Layer(
+
+                "ScatterplotLayer",
+                data=df,
+                get_position=["lon", "lat"],
+                get_color=[200, 30, 0, 160],
+                get_radius="[years]",
+                radius_scale=8000,
+
+            ),
+            "noms des villes": pdk.Layer(
+                "TextLayer",
+                data=df,
+                get_position=["lon", "lat"],
+                get_text="city",
+                get_color=[0, 0, 0, 200],
+                get_size=15,
+                get_alignment_baseline="'bottom'",
+            )
+            ,
+            "Outbound Flow": pdk.Layer(
+                "ArcLayer",
+                data=df2,
+                get_source_position=["lon", "lat"],
+                get_target_position=["lon2", "lat2"],
+                get_source_color=[200, 30, 0, 160],
+                get_target_color=[200, 30, 0, 160],
+                auto_highlight=True,
+                width_scale=0.0001,
+                get_width="outbound",
+                width_min_pixels=3,
+                width_max_pixels=30,
+            )
+
+        }
+
+        col3, col4 = st.columns(2)
+        with col3:
+            selected_layers = [
+                layer
+                for layer_name, layer in ALL_LAYERS.items()
+                if st.checkbox(layer_name, True)
+            ]
+
+        with col4:
+            st.subheader("Lieux d'habitation")
+            st.text("Voici la liste des lieux que j'ai habités, ainsi que les trajets des déménagements.")
+            if selected_layers:
+                st.pydeck_chart(
+                    pdk.Deck(
+                        map_style=None,
+                        initial_view_state={
+                            "latitude": 46.89,
+                            "longitude": 2.53,
+                            "zoom": 5,
+                            "pitch": 50,
+                        },
+                        layers=selected_layers,
+                    )
+                )
+            else:
+                st.error("Please choose at least one layer above.")
+
     return "hello world"
 
 
