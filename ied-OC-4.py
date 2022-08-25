@@ -64,7 +64,6 @@ def modify_value(inputs: dict, image: Image, data: dict) -> None:
     piexif.insert(exif_bytes, new_image_path)
 
 
-
 def get_value_format(tag: str, value) -> tuple:
     """
     function to test if a text fits format data
