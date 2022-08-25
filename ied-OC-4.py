@@ -189,7 +189,6 @@ def main():
             latitude = get_lat(data)
             longitude = get_long(data)
             df = pandas.DataFrame({
-                'awesome cities': ['Chicago'],
                 'lat': [latitude],
                 'lon': [longitude]
             })
