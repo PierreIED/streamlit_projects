@@ -5,6 +5,8 @@ import piexif
 from fractions import Fraction
 import pandas as pd
 import pydeck as pdk
+import tempfile
+import requests
 
 
 # =====================  Functions to prompt values from exif data ================================
@@ -177,9 +179,14 @@ def main():
         st.subheader("Modify EXIF")
         st.text("Chargez une photo et modifiez-en les métadonnées")
         uploaded_image = st.file_uploader("Sélectionnez une photo", ["jpg", "png"])
+        my_image: Image
         # providing default path
+        if not uploaded_image:
+            url = "https://github.com/PierreIED/streamlit_projects/blob/master/chien.jpg"
+            my_image = Image.open(requests.get(url, stream=True).raw)
+        else:
+            my_image = Image.open(uploaded_image)
 
-        my_image = Image.open("chien.jpg") if not uploaded_image else Image.open(uploaded_image)
         data = piexif.load(my_image.info['exif'])
 
         col1, col2 = st.columns(2)
