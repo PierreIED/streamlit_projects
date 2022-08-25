@@ -7,38 +7,66 @@ import pandas as pd
 import pydeck as pdk
 
 
+# =====================  Functions to prompt values from exif data ================================
 def prompt_str(value: bytes) -> str:
     return value.decode()
 
 
 def prompt_coord(value: tuple) -> str:
+    """
+    function to convert GPS coord value from data exif format to decimal
+    :param value: exif value
+    :return: text of decimal conversion
+    """
     dec = int(value[0][0] / value[0][1])
     dec += int(value[1][0] / value[1][1]) / 60
     dec += value[2][0] / (value[2][1] * 3600)
     return str(dec)
 
 
-def modify_value2(inputs: dict, image: Image, data: dict):
+# ====================== other utility functions    ==============================================
+def modify_value(inputs: dict, image: Image, data: dict) -> None:
+    """
+    function to modify exif and save a new picture with new exif
+    :param inputs: dict of st.input_text values (keys are tag_name)
+    :param image:  processed image
+    :param data: exif data
+    :return: None
+    """
+    # loop through tags :
     for tag in inputs.keys():
         value = inputs[tag]
+        # ignore empty input_texts
         if value == "":
             continue
+        # test input value and format value to be prompted
         test_value, value = get_value_format(tag, value)
         if not test_value:
+            # pop up to explain error
             st.error(f"La valeur pour {tag} n'est pas au bon format")
             continue
-
+        # get current ifd :
         ifd = "0th" if tag in exif_trad["0th"].keys() else "GPS"
+        # change value in data
         data[ifd][exif_trad[ifd][tag][1]] = value
+
+    # create a new Image
     new_image = image.copy()
-
+    # convert data into bytes
     exif_bytes = piexif.dump(data)
+    # save copy to img_copy.jpg in current directory
     new_image.save("img_copy.jpg", "jpeg")
-
+    # insert exif in bytes format into created image
     piexif.insert(exif_bytes, "img_copy.jpg")
 
 
 def get_value_format(tag: str, value) -> tuple:
+    """
+    function to test if a text fits format data
+    :param tag: exif tag name
+    :param value: input value
+    :return: tuple : boolean to test if value fits format data, and value to be inserted into data dict
+    """
     test = False
     new_value = None
     if tag in ["ImageWidth", "ImageLength"]:
@@ -85,10 +113,16 @@ def get_value_format(tag: str, value) -> tuple:
 
 
 def to_fraction(value: float) -> tuple:
+    """
+    function to convert float value into tuple with numerator and denominator
+    :param value: float value
+    :return: (numerator, denominator)
+    """
     f = Fraction(str(value))
     return f.numerator, f.denominator
 
 
+# translation dict : {tag_name: (translation , tag_code, callable to print value)
 exif_trad = {"0th":
                  {"ImageWidth": ("largeur en pixels", piexif.ImageIFD.ImageWidth, None),
                   "ImageLength": ("largeur en pixels", piexif.ImageIFD.ImageLength, None),
@@ -104,6 +138,11 @@ exif_trad = {"0th":
 
 
 def get_lat(data: dict) -> float:
+    """
+    function to convert latitude from (deg, min, sec) format to decimal
+    :param data: exif data dict
+    :return: decimal value of latitude
+    """
     if piexif.GPSIFD.GPSLatitude not in data['GPS'].keys():
         return 0
     lat_frac = data['GPS'][piexif.GPSIFD.GPSLatitude]
@@ -114,6 +153,11 @@ def get_lat(data: dict) -> float:
 
 
 def get_long(data: dict) -> float:
+    """
+    function to convert longitude from (deg, min, sec) format to decimal
+    :param data: exif data dict
+    :return: decimal value of longitude
+    """
     if piexif.GPSIFD.GPSLongitude not in data['GPS'].keys():
         return 0
     long_frac = data['GPS'][piexif.GPSIFD.GPSLongitude]
@@ -164,7 +208,7 @@ def main():
                         text_value = exif_trad[ifd][tag_name][2](value) if exif_trad[ifd][tag_name][2] else value
                     inputs[tag_name] = st.text_input(f"{exif_trad[ifd][tag_name][0]}",
                                                      value=text_value)
-            st.button("changer les données", on_click=modify_value2, args=(inputs, my_image, data))
+            st.button("changer les données", on_click=modify_value, args=(inputs, my_image, data))
 
     # ====================      Location part   =======================
     else:
@@ -231,7 +275,7 @@ def main():
 
         df2 = pd.DataFrame.from_dict(data_pandas2)
 
-        ALL_LAYERS = {
+        all_layers = {
             "Années passées": pdk.Layer(
 
                 "ScatterplotLayer",
@@ -250,9 +294,8 @@ def main():
                 get_color=[0, 0, 0, 200],
                 get_size=15,
                 get_alignment_baseline="'bottom'",
-            )
-            ,
-            "Outbound Flow": pdk.Layer(
+            ),
+            "Déménagements": pdk.Layer(
                 "ArcLayer",
                 data=df2,
                 get_source_position=["lon", "lat"],
@@ -272,7 +315,7 @@ def main():
         with col3:
             selected_layers = [
                 layer
-                for layer_name, layer in ALL_LAYERS.items()
+                for layer_name, layer in all_layers.items()
                 if st.checkbox(layer_name, True)
             ]
 
