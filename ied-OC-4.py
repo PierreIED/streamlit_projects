@@ -6,6 +6,7 @@ from fractions import Fraction
 import pandas as pd
 import pydeck as pdk
 import tempfile
+import os
 import requests
 
 
@@ -56,10 +57,12 @@ def modify_value(inputs: dict, image: Image, data: dict) -> None:
     new_image = image.copy()
     # convert data into bytes
     exif_bytes = piexif.dump(data)
-    # save copy to img_copy.jpg in current directory
-    new_image.save("img_copy.jpg", "jpeg")
+    # save copy to img_copy.jpg in temp directory
+    new_image_path = os.path.join(tempfile.gettempdir(), "img_copy.jpg")
+    new_image.save(new_image_path, "jpeg")
     # insert exif in bytes format into created image
-    piexif.insert(exif_bytes, "img_copy.jpg")
+    piexif.insert(exif_bytes, new_image_path)
+
 
 
 def get_value_format(tag: str, value) -> tuple:
@@ -181,9 +184,18 @@ def main():
         uploaded_image = st.file_uploader("Sélectionnez une photo", ["jpg", "png"])
         my_image: Image
         # providing default path
+        default_pic_path = os.path.join(tempfile.gettempdir(), "chien.jpg")
         if not uploaded_image:
-            url = "https://github.com/PierreIED/streamlit_projects/blob/master/chien.jpg"
-            my_image = Image.open(requests.get(url, stream=True).raw)
+            try:
+                file = open(default_pic_path, "r")
+                file.close()
+            except FileNotFoundError:
+                url = "https://raw.githubusercontent.com/PierreIED/streamlit_projects/master/chien.jpg"
+                r = requests.get(url)
+                file = open(default_pic_path, "wb")
+                file.write(r.content)
+                file.close()
+            my_image = Image.open(default_pic_path)
         else:
             my_image = Image.open(uploaded_image)
 
